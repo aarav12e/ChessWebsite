@@ -4,11 +4,133 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="styles/index.css" />
-    <title>Chess-Game</title>
+    <title>Chess Puzzle</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="brand">
+          <h1>Chess Puzzle</h1>
+          <p>Play a quick chess challenge with dual clocks, move history, and save/load support.</p>
+        </div>
+        <div class="status-panel">
+          <div class="status-card">
+            <span class="status-label">Turn</span>
+            <span id="turnLabel" class="status-value">White</span>
+          </div>
+          <div class="status-card">
+            <span class="status-label">White Clock</span>
+            <span id="whiteTimer" class="status-value">10:00</span>
+          </div>
+          <div class="status-card">
+            <span class="status-label">Black Clock</span>
+            <span id="blackTimer" class="status-value">10:00</span>
+          </div>
+          <div class="time-control-card">
+            <span class="status-label">Time Control</span>
+            <div class="time-buttons">
+              <button id="bulletBtn" class="ui-button secondary small">1m</button>
+              <button id="blitzBtn" class="ui-button secondary small">5m</button>
+              <button id="rapidBtn" class="ui-button secondary small">10m</button>
+              <button id="classicalBtn" class="ui-button secondary small">15m</button>
+            </div>
+            <div class="custom-time">
+              <input id="customMinutes" type="number" min="1" max="60" value="10" />
+              <span>min</span>
+              <button id="setCustomTimeBtn" class="ui-button secondary small">Set</button>
+            </div>
+          </div>
+          <div class="theme-card">
+            <span class="status-label">Theme</span>
+            <select id="themeSelect" class="theme-select">
+              <option value="theme-default">Default</option>
+              <option value="theme-light">Light</option>
+              <option value="theme-forest">Forest</option>
+              <option value="theme-night">Night</option>
+              <option value="theme-sunset">Sunset</option>
+            </select>
+          </div>
+        </div>
+      </header>
+
+      <main class="app-main">
+        <section class="board-panel">
+          <div class="board-wrapper">
+            <div class="board-labels top">
+              <span>a</span>
+              <span>b</span>
+              <span>c</span>
+              <span>d</span>
+              <span>e</span>
+              <span>f</span>
+              <span>g</span>
+              <span>h</span>
+            </div>
+            <div class="board-body">
+              <div class="board-labels left">
+                <span>8</span>
+                <span>7</span>
+                <span>6</span>
+                <span>5</span>
+                <span>4</span>
+                <span>3</span>
+                <span>2</span>
+                <span>1</span>
+              </div>
+              <div id="root"></div>
+            </div>
+            <div class="board-labels bottom">
+              <span>a</span>
+              <span>b</span>
+              <span>c</span>
+              <span>d</span>
+              <span>e</span>
+              <span>f</span>
+              <span>g</span>
+              <span>h</span>
+            </div>
+          </div>
+        </section>
+
+        <aside class="puzzle-panel">
+          <div class="panel-header">
+            <h2>Game Info</h2>
+            <div class="capture-summary">
+              <div>
+                <strong>White Captured</strong>
+                <span id="whiteCapture">0</span>
+              </div>
+              <div>
+                <strong>Black Captured</strong>
+                <span id="blackCapture">0</span>
+              </div>
+            </div>
+          </div>
+          <div class="status-card status-message">
+            <span class="status-label">Status</span>
+            <span id="statusMessage">Game ready. Select a piece to start.</span>
+          </div>
+          <div class="puzzle-card">
+            <h3>Move History</h3>
+            <ol id="moveHistoryList" class="move-history"></ol>
+          </div>
+          <div class="action-buttons">
+            <button id="undoBtn" class="ui-button secondary small">Undo</button>
+            <button id="redoBtn" class="ui-button secondary small">Redo</button>
+            <button id="toggleClockBtn" class="ui-button secondary small">Pause Clock</button>
+            <button id="saveGameBtn" class="ui-button secondary small">Save</button>
+            <button id="loadGameBtn" class="ui-button secondary small">Load</button>
+          </div>
+          <button id="resetPositionBtn" class="ui-button secondary">
+            Reset Position
+          </button>
+        </aside>
+      </main>
+
+
+    </div>
+
+    <script type="module" src="index.js"></script>
   </body>
-  <script type="module" src="index.js"></script>
-  </html>
+</html>
   

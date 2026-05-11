@@ -18,7 +18,7 @@ import {
 } from "../Helper/commonHelper.js";
 import { giveQueenHighlightIds } from "../Helper/commonHelper.js";
 import { ROOT_DIV } from "../Helper/constants.js";
-import { clearHightlight } from "../Render/main.js";
+import { clearHightlight, updateGlobalPieceMapping, initGameRender } from "../Render/main.js";
 import { selfHighlight } from "../Render/main.js";
 import { globalStateRender } from "../Render/main.js";
 import { globalState, keySquareMapper } from "../index.js";
@@ -31,32 +31,176 @@ import HypotheticalBoard from "../Others/HypotheticalBoard.js";
 let hightlight_state = false;
 let inTurn = "white";
 let whoInCheck = null;
+let enPassantTarget = null;
+let enPassantCapturedPawnId = null;
+let gameOver = false;
+
+const moveListeners = [];
+const turnListeners = [];
+const statusListeners = [];
+
+let historyStates = [];
+let historyMoves = [];
+let historyIndex = 0;
 
 function changeTurn() {
   inTurn = inTurn === "white" ? "black" : "white";
+  notifyTurnChange();
+}
+
+function notifyMove(move) {
+  moveListeners.forEach((fn) => fn(move));
+}
+
+function registerMoveListener(fn) {
+  if (typeof fn === "function") moveListeners.push(fn);
+}
+
+function notifyTurnChange() {
+  turnListeners.forEach((fn) => fn(inTurn));
+}
+
+function registerTurnListener(fn) {
+  if (typeof fn === "function") turnListeners.push(fn);
+}
+
+function notifyStatus(message) {
+  statusListeners.forEach((fn) => fn(message));
+}
+
+function registerStatusListener(fn) {
+  if (typeof fn === "function") statusListeners.push(fn);
+}
+
+function getSnapshot() {
+  return {
+    board: JSON.parse(JSON.stringify(globalState)),
+    turn: inTurn,
+  };
+}
+
+function restoreSnapshot(snapshot) {
+  globalState.length = 0;
+  snapshot.board.forEach((row) => globalState.push(row));
+  globalState.flat().forEach((square) => {
+    keySquareMapper[square.id] = square;
+  });
+  updateGlobalPieceMapping(globalState);
+  document.getElementById("root").innerHTML = "";
+  initGameRender(globalState);
+  inTurn = snapshot.turn;
+  notifyTurnChange();
+  updateCaptureStatus();
+}
+
+function initHistory() {
+  historyStates = [getSnapshot()];
+  historyMoves = [];
+  historyIndex = 0;
+}
+
+function recordMove(moveRecord) {
+  historyStates = historyStates.slice(0, historyIndex + 1);
+  historyMoves = historyMoves.slice(0, historyIndex);
+  historyStates.push(getSnapshot());
+  historyMoves.push(moveRecord);
+  historyIndex = historyStates.length - 1;
+}
+
+function undoMove() {
+  if (historyIndex === 0) return false;
+  historyIndex -= 1;
+  restoreSnapshot(historyStates[historyIndex]);
+  notifyStatus("Move undone.");
+  return true;
+}
+
+function redoMove() {
+  if (historyIndex >= historyStates.length - 1) return false;
+  historyIndex += 1;
+  restoreSnapshot(historyStates[historyIndex]);
+  notifyStatus("Move redone.");
+  return true;
+}
+
+function getMoveHistory() {
+  return historyMoves.slice(0, historyIndex);
+}
+
+function getCurrentTurn() {
+  return inTurn;
+}
+
+function getCapturedCounts() {
+  const flatData = globalState.flat();
+  const whitePieces = flatData.filter((square) => square.piece?.piece_name?.startsWith("WHITE")).length;
+  const blackPieces = flatData.filter((square) => square.piece?.piece_name?.startsWith("BLACK")).length;
+  return {
+    whiteCaptured: Math.max(0, 16 - whitePieces),
+    blackCaptured: Math.max(0, 16 - blackPieces),
+  };
+}
+
+function updateCaptureStatus() {
+  const counts = getCapturedCounts();
+  notifyMoveCapture(counts);
+}
+
+function loadSavedGame(data) {
+  if (!data?.snapshot) {
+    return false;
+  }
+
+  historyStates = Array.isArray(data.historyStates) ? data.historyStates : [data.snapshot];
+  historyMoves = Array.isArray(data.historyMoves) ? data.historyMoves : [];
+  historyIndex = typeof data.historyIndex === "number" ? data.historyIndex : historyStates.length - 1;
+
+  restoreSnapshot(historyStates[historyIndex]);
+  notifyStatus("Loaded saved game.");
+  return true;
+}
+
+function getHistoryData() {
+  return {
+    historyStates,
+    historyMoves,
+    historyIndex,
+  };
+}
+
+const captureListeners = [];
+function notifyMoveCapture(counts) {
+  captureListeners.forEach((fn) => fn(counts));
+}
+
+function registerCaptureListener(fn) {
+  if (typeof fn === "function") captureListeners.push(fn);
 }
 
 function checkForCheck() {
   if (inTurn === "black") {
-    const whiteKingCurrentPosition = globalPiece.white_king.current_position;
-    const knight_1 = globalPiece.black_knight_1.current_position;
-    const knight_2 = globalPiece.black_knight_2.current_position;
-    const king = globalPiece.black_king.current_position;
-    const bishop_1 = globalPiece.black_bishop_1.current_position;
-    const bishop_2 = globalPiece.black_bishop_2.current_position;
-    const rook_1 = globalPiece.black_rook_1.current_position;
-    const rook_2 = globalPiece.black_rook_2.current_position;
-    const queen = globalPiece.black_queen.current_position;
+    const whiteKingCurrentPosition = globalPiece.white_king?.current_position;
+    const knightPositions = [
+      globalPiece.black_knight_1?.current_position,
+      globalPiece.black_knight_2?.current_position,
+    ].filter(Boolean);
+    const king = globalPiece.black_king?.current_position;
+    const bishopPositions = [
+      globalPiece.black_bishop_1?.current_position,
+      globalPiece.black_bishop_2?.current_position,
+    ].filter(Boolean);
+    const rookPositions = [
+      globalPiece.black_rook_1?.current_position,
+      globalPiece.black_rook_2?.current_position,
+    ].filter(Boolean);
+    const queen = globalPiece.black_queen?.current_position;
 
     let finalCheckList = [];
-    finalCheckList.push(giveKnightCaptureIds(knight_1, inTurn));
-    finalCheckList.push(giveKnightCaptureIds(knight_2, inTurn));
-    finalCheckList.push(giveKingCaptureIds(king, inTurn));
-    finalCheckList.push(giveBishopCaptureIds(bishop_1, inTurn));
-    finalCheckList.push(giveBishopCaptureIds(bishop_2, inTurn));
-    finalCheckList.push(giveRookCapturesIds(rook_1, inTurn));
-    finalCheckList.push(giveRookCapturesIds(rook_2, inTurn));
-    finalCheckList.push(giveQueenCapturesIds(queen, inTurn));
+    knightPositions.forEach((pos) => finalCheckList.push(giveKnightCaptureIds(pos, inTurn)));
+    if (king) finalCheckList.push(giveKingCaptureIds(king, inTurn));
+    bishopPositions.forEach((pos) => finalCheckList.push(giveBishopCaptureIds(pos, inTurn)));
+    rookPositions.forEach((pos) => finalCheckList.push(giveRookCapturesIds(pos, inTurn)));
+    if (queen) finalCheckList.push(giveQueenCapturesIds(queen, inTurn));
 
     finalCheckList = finalCheckList.flat();
     const checkOrNot = finalCheckList.find(
@@ -67,25 +211,28 @@ function checkForCheck() {
       whoInCheck = "white";
     }
   } else {
-    const blackKingCurrentPosition = globalPiece.black_king.current_position;
-    const knight_1 = globalPiece.white_knight_1.current_position;
-    const knight_2 = globalPiece.white_knight_2.current_position;
-    const king = globalPiece.white_king.current_position;
-    const bishop_1 = globalPiece.white_bishop_1.current_position;
-    const bishop_2 = globalPiece.white_bishop_2.current_position;
-    const rook_1 = globalPiece.white_rook_1.current_position;
-    const rook_2 = globalPiece.white_rook_2.current_position;
-    const queen = globalPiece.white_queen.current_position;
+    const blackKingCurrentPosition = globalPiece.black_king?.current_position;
+    const knightPositions = [
+      globalPiece.white_knight_1?.current_position,
+      globalPiece.white_knight_2?.current_position,
+    ].filter(Boolean);
+    const king = globalPiece.white_king?.current_position;
+    const bishopPositions = [
+      globalPiece.white_bishop_1?.current_position,
+      globalPiece.white_bishop_2?.current_position,
+    ].filter(Boolean);
+    const rookPositions = [
+      globalPiece.white_rook_1?.current_position,
+      globalPiece.white_rook_2?.current_position,
+    ].filter(Boolean);
+    const queen = globalPiece.white_queen?.current_position;
 
     let finalCheckList = [];
-    finalCheckList.push(giveKnightCaptureIds(knight_1, inTurn));
-    finalCheckList.push(giveKnightCaptureIds(knight_2, inTurn));
-    finalCheckList.push(giveKingCaptureIds(king, inTurn));
-    finalCheckList.push(giveBishopCaptureIds(bishop_1, inTurn));
-    finalCheckList.push(giveBishopCaptureIds(bishop_2, inTurn));
-    finalCheckList.push(giveRookCapturesIds(rook_1, inTurn));
-    finalCheckList.push(giveRookCapturesIds(rook_2, inTurn));
-    finalCheckList.push(giveQueenCapturesIds(queen, inTurn));
+    knightPositions.forEach((pos) => finalCheckList.push(giveKnightCaptureIds(pos, inTurn)));
+    if (king) finalCheckList.push(giveKingCaptureIds(king, inTurn));
+    bishopPositions.forEach((pos) => finalCheckList.push(giveBishopCaptureIds(pos, inTurn)));
+    rookPositions.forEach((pos) => finalCheckList.push(giveRookCapturesIds(pos, inTurn)));
+    if (queen) finalCheckList.push(giveQueenCapturesIds(queen, inTurn));
 
     finalCheckList = finalCheckList.flat();
     const checkOrNot = finalCheckList.find(
@@ -182,38 +329,52 @@ function moveElement(piece, id, castle) {
     }
   }
 
+  const fromId = piece.current_position;
+  let capturedPiece = null;
   const flatData = globalState.flat();
   flatData.forEach((el) => {
-    if (el.id == piece.current_position) {
+    if (el.id == fromId) {
       delete el.piece;
     }
     if (el.id == id) {
       if (el.piece) {
+        capturedPiece = el.piece;
         el.piece.current_position = null;
       }
       el.piece = piece;
     }
   });
+
   clearHightlight();
-  const previousPiece = document.getElementById(piece.current_position);
+  const previousPiece = document.getElementById(fromId);
   piece.current_position = null;
   previousPiece?.classList?.remove("highlightYellow");
   const currentPiece = document.getElementById(id);
   currentPiece.innerHTML = previousPiece?.innerHTML;
   if (previousPiece) previousPiece.innerHTML = "";
   piece.current_position = id;
+
   if (pawnIsPromoted) {
     pawnPromotion(inTurn, callbackPawnPromotion, id);
   }
+
   checkForCheck();
-  // if(whoInCheck)
-  // {
-  // }
-  // new HypotheticalBoard(globalState);
+
+  const moveRecord = {
+    piece: piece.piece_name,
+    from: fromId,
+    to: id,
+    capture: Boolean(capturedPiece),
+    promotion: Boolean(pawnIsPromoted),
+    castle: Boolean(castle),
+  };
+
   if (!castle) {
     changeTurn();
+    recordMove(moveRecord);
+    notifyMove(moveRecord);
+    updateCaptureStatus();
   }
-  // globalStateRender();
 }
 
 // current self-highlighted square state
@@ -1493,4 +1654,19 @@ function GlobalEvent() {
   });
 }
 
-export { GlobalEvent, movePieceFromXToY };
+export {
+  GlobalEvent,
+  movePieceFromXToY,
+  registerMoveListener,
+  registerTurnListener,
+  registerStatusListener,
+  registerCaptureListener,
+  undoMove,
+  redoMove,
+  getMoveHistory,
+  initHistory,
+  getCapturedCounts,
+  getCurrentTurn,
+  loadSavedGame,
+  getHistoryData,
+};
