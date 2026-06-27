@@ -471,7 +471,7 @@ git push origin feature/ai-minimax
 <div align="center">
 
 
-*Built with ♟️ pure JavaScript — because real programmers don't need a framework to play chess*
+*Built with ♟️ pure JavaScript*
 
 **`< / ChessWebsite >`**
 
